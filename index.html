@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Plus Grid Hover</title>
+<style>
+  :root{
+    /* Quick knobs */
+    --cols: 32;               /* number of columns */
+    --rows: 18;               /* number of rows */
+    --cell: 28px;             /* cell size */
+    --gap: 10px;              /* spacing between cells */
+
+    --bg: #0b0b0b;            /* page background */
+    --plus-off: #6b7280;      /* grey “off” */
+    --plus-on:  #ffd166;      /* colored “on” */
+  }
+
+  html,body{
+    height:100%;
+    margin:0;
+    background:radial-gradient(1200px 500px at 70% 30%, #151515 0%, #0b0b0b 60%, #0b0b0b 100%);
+    color:#fff;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  }
+
+  .wrap{
+    height:100%;
+    display:grid;
+    place-items:center;
+    padding:4vmin;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(var(--cols), var(--cell));
+    grid-auto-rows: var(--cell);
+    gap: var(--gap);
+    /* optional vignette frame */
+    padding: clamp(12px, 2vmin, 32px);
+    background: rgba(255,255,255,0.03);
+    border-radius: 16px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.6) inset,
+                0 40px 60px rgba(0,0,0,0.35);
+  }
+
+  .dot{
+    width: var(--cell);
+    height: var(--cell);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    user-select:none;
+
+    /* visual style */
+    color: var(--plus-off);
+    opacity: .7;
+    font-weight: 900;
+    font-size: calc(var(--cell) * 0.7);
+    line-height: 1;
+    transition:
+      color .15s linear,
+      opacity .35s ease;      /* fade on hover-out */
+  }
+  .dot::before { content: "+"; }
+
+  .dot:hover{
+    color: var(--plus-on);
+    opacity: 1;
+    text-shadow: 0 0 6px rgba(255, 209, 102, .6), 0 0 18px rgba(255, 209, 102, .25);
+  }
+
+  /* Optional: larger hit area so the trail feels smooth */
+  .dot { padding: 6px; box-sizing: content-box; }
+  @media (max-width: 700px){
+    :root{ --cols: 18; --rows: 18; --cell: 22px; --gap: 8px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid" id="grid" aria-hidden="true"></div>
+  </div>
+
+<script>
+  // Build the grid. No dependencies.
+  const grid = document.getElementById('grid');
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
+  const rows = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rows'));
+  const total = cols * rows;
+
+  const frag = document.createDocumentFragment();
+  for(let i=0;i<total;i++){
+    const d = document.createElement('span');
+    d.className = 'dot';
+    frag.appendChild(d);
+  }
+  grid.appendChild(frag);
+
+  // Optional: smooth cursor “flashlight” radius. Comment out if you want per-dot only.
+  // Highlights nearby dots as you pass, each still fades on exit.
+  const R = 55; // radius in px
+  let rect = grid.getBoundingClientRect();
+  window.addEventListener('resize',()=>{ rect = grid.getBoundingClientRect(); });
+
+  grid.addEventListener('mousemove', (e)=>{
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    for(const el of grid.children){
+      const r = el.getBoundingClientRect();
+      const cx = r.left - rect.left + r.width/2;
+      const cy = r.top  - rect.top  + r.height/2;
+      const dist = Math.hypot(cx - x, cy - y);
+      const active = dist < R;
+      el.style.color   = active ? getComputedStyle(document.documentElement).getPropertyValue('--plus-on') : '';
+      el.style.opacity = active ? '1' : '';
+      el.style.textShadow = active ? '0 0 6px rgba(255,209,102,.6), 0 0 18px rgba(255,209,102,.25)' : '';
+    }
+  });
+
+  grid.addEventListener('mouseleave', ()=>{
+    // Let CSS handle the fade-out by clearing inline styles
+    for(const el of grid.children){
+      el.style.color = el.style.opacity = el.style.textShadow = '';
+    }
+  });
+</script>
+</body>
+</html>
