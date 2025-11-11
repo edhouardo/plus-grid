@@ -17,20 +17,24 @@
     --plus-on:  #ffd166;      /* colored “on” */
   }
 
-  html,body{
-    height:100%;
-    margin:0;
-    background:radial-gradient(1200px 500px at 70% 30%, #151515 0%, #0b0b0b 60%, #0b0b0b 100%);
-    color:#fff;
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-  }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;                  /* stop page scrolling */
+  background: radial-gradient(1200px 500px at 70% 30%, #151515 0%, #0b0b0b 60%, #0b0b0b 100%);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
 
-  .wrap{
-    height:100%;
-    display:grid;
-    place-items:center;
-    padding:4vmin;
-  }
+/* Fill the viewport and allow internal padding without growing the page size */
+.wrap {
+  position: fixed;                   /* pin to viewport */
+  inset: 0;                          /* top:0 right:0 bottom:0 left:0 */
+  display: grid;
+  place-items: center;
+  padding: 4vmin;                    /* safe padding, won’t create scroll */
+  box-sizing: border-box;
+}
+
 
   .grid{
     display:grid;
