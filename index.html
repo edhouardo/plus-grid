@@ -3,17 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Plus Grid — Thin Stroke</title>
+<title>Plus Grid — Thin, Spaced, Equal Margins</title>
 <style>
   :root{
-    --margin: 20px;          /* viewport margin on all sides */
-    --bg: #ffffff;           /* page background */
-    --plus-off: #DEDEDE;     /* default stroke color */
-    --plus-on:  #7D97EB;     /* hover stroke color */
-    --stroke: 2px;           /* ≈ 1.5pt */
-    --cell: 28px;            /* cell box size */
-    --gap: 10px;             /* spacing between cells */
-    --arm: 8px;              /* half-length of plus arms */
+    /* Layout */
+    --margin: 20px;          /* equal outer margin */
+    --bg: #F3F6F6;           /* page background */
+
+    /* Plus look */
+    --plus-off: #DEDEDE;     /* idle stroke */
+    --plus-on:  #7D97EB;     /* hover stroke */
+    --stroke: 1.5px;         /* thinner than before */
+    --cell: 18px;            /* smaller symbol box */
+    --gap: 20px;             /* more spacing between symbols */
+    --arm: 5px;              /* half arm length of the + */
   }
 
   html, body {
@@ -24,17 +27,18 @@
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   }
 
-  /* Fill viewport with a 20px margin box */
+  /* Fill viewport with equal margins */
   .wrap {
     position: fixed;
     inset: var(--margin);
     display: grid;
-    place-items: center;
+    /* Center content so any leftover space splits evenly top/bottom and left/right */
+    place-content: center;
     box-sizing: border-box;
     background: transparent;
   }
 
-  /* Grid fills the available box */
+  /* Grid fills the available box; rows/cols computed in JS */
   .grid {
     width: 100%;
     height: 100%;
@@ -52,17 +56,13 @@
     user-select: none;
   }
 
-  svg {
-    width: var(--cell);
-    height: var(--cell);
-    overflow: visible;
-  }
+  svg { width: var(--cell); height: var(--cell); overflow: visible; }
 
   .plus line {
     stroke: var(--plus-off);
     stroke-width: var(--stroke);
     stroke-linecap: round;
-    transition: stroke .15s linear, opacity .35s ease, filter .2s ease;
+    transition: stroke .15s linear, opacity .25s ease, filter .2s ease;
     opacity: .9;
   }
 
@@ -70,11 +70,16 @@
   .dot._active .plus line {
     stroke: var(--plus-on);
     opacity: 1;
-    filter: drop-shadow(0 0 6px rgba(125,151,235,.45)) drop-shadow(0 0 14px rgba(125,151,235,.2));
+    filter: drop-shadow(0 0 6px rgba(125,151,235,.35)) drop-shadow(0 0 14px rgba(125,151,235,.15));
   }
 
   @media (max-width: 700px){
-    :root { --cell: 22px; --gap: 8px; --arm: 6px; }
+    :root { --cell: 16px; --gap: 16px; --arm: 4.5px; }
+  }
+
+  /* iOS viewport stability */
+  @supports (height: 100dvh) {
+    .wrap { height: calc(100dvh - 2 * var(--margin)); }
   }
 </style>
 </head>
@@ -84,11 +89,10 @@
   </div>
 
 <script>
-  // Parameters pulled from CSS custom properties
+  // Utility
   const css = getComputedStyle(document.documentElement);
   const grid = document.getElementById('grid');
-
-  function num(val){ return parseFloat(val); }
+  const num = v => parseFloat(v);
 
   function readVars(){
     return {
@@ -107,24 +111,20 @@
   }
 
   function makePlus(arm){
-    // SVG plus at center with controlled stroke width
-    const svgNS = 'http://www.w3.org/2000/svg';
-    const s = document.createElementNS(svgNS, 'svg');
-    s.setAttribute('viewBox', '-12 -12 24 24'); // centered coordinate system
+    const NS = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '-12 -12 24 24');
+    const g = document.createElementNS(NS, 'g'); g.setAttribute('class','plus');
 
-    const g = document.createElementNS(svgNS, 'g');
-    g.setAttribute('class', 'plus');
-
-    const h = document.createElementNS(svgNS, 'line');
+    const h = document.createElementNS(NS, 'line');
     h.setAttribute('x1', -arm); h.setAttribute('y1', 0);
     h.setAttribute('x2',  arm); h.setAttribute('y2', 0);
 
-    const v = document.createElementNS(svgNS, 'line');
+    const v = document.createElementNS(NS, 'line');
     v.setAttribute('x1', 0); v.setAttribute('y1', -arm);
     v.setAttribute('x2', 0); v.setAttribute('y2',  arm);
 
-    g.appendChild(h); g.appendChild(v);
-    s.appendChild(g);
+    g.appendChild(h); g.appendChild(v); s.appendChild(g);
     return s;
   }
 
@@ -135,10 +135,8 @@
     if (cols === lastCols && rows === lastRows) return;
     lastCols = cols; lastRows = rows;
 
-    // Update CSS var for columns so the grid template matches
     grid.style.setProperty('--cols', cols);
 
-    // Build cells
     const {arm} = readVars();
     const frag = document.createDocumentFragment();
     for (let i = 0; i < cols * rows; i++){
@@ -150,10 +148,9 @@
     grid.replaceChildren(frag);
   }
 
-  // Optional "flashlight" radius to softly light nearby pluses
-  const R = 55;
+  // Optional proximity “flashlight”
+  const R = 48; // slightly tighter for smaller symbols
   let gridRect = grid.getBoundingClientRect();
-
   function refreshRect(){ gridRect = grid.getBoundingClientRect(); }
 
   function enableFlashlight(){
@@ -164,16 +161,14 @@
         const r = cell.getBoundingClientRect();
         const cx = r.left - gridRect.left + r.width/2;
         const cy = r.top  - gridRect.top  + r.height/2;
-        const active = Math.hypot(cx - x, cy - y) < R;
-        cell.classList.toggle('_active', active);
+        cell.classList.toggle('_active', Math.hypot(cx - x, cy - y) < R);
       }
     });
     grid.addEventListener('mouseleave', ()=>{
-      for (const cell of grid.children){ cell.classList.remove('_active'); }
+      for (const cell of grid.children) cell.classList.remove('_active');
     });
   }
 
-  // Build and keep responsive
   const ro = new ResizeObserver(()=>{ refreshRect(); build(); });
   ro.observe(grid);
   window.addEventListener('resize', ()=>{ refreshRect(); build(); });
