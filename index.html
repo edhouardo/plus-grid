@@ -3,82 +3,78 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Plus Grid Hover</title>
+<title>Plus Grid — Thin Stroke</title>
 <style>
   :root{
-    /* Quick knobs */
-    --cols: 32;               /* number of columns */
-    --rows: 18;               /* number of rows */
-    --cell: 28px;             /* cell size */
-    --gap: 10px;              /* spacing between cells */
-
-    --bg: #0b0b0b;            /* page background */
-    --plus-off: #6b7280;      /* grey “off” */
-    --plus-on:  #ffd166;      /* colored “on” */
+    --margin: 20px;          /* viewport margin on all sides */
+    --bg: #ffffff;           /* page background */
+    --plus-off: #DEDEDE;     /* default stroke color */
+    --plus-on:  #7D97EB;     /* hover stroke color */
+    --stroke: 2px;           /* ≈ 1.5pt */
+    --cell: 28px;            /* cell box size */
+    --gap: 10px;             /* spacing between cells */
+    --arm: 8px;              /* half-length of plus arms */
   }
 
-html, body {
-  margin: 0;
-  height: 100%;
-  overflow: hidden;                  /* stop page scrolling */
-  background: radial-gradient(1200px 500px at 70% 30%, #151515 0%, #0b0b0b 60%, #0b0b0b 100%);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-}
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
 
-/* Fill the viewport and allow internal padding without growing the page size */
-.wrap {
-  position: fixed;                   /* pin to viewport */
-  inset: 0;                          /* top:0 right:0 bottom:0 left:0 */
-  display: grid;
-  place-items: center;
-  padding: 4vmin;                    /* safe padding, won’t create scroll */
-  box-sizing: border-box;
-}
+  /* Fill viewport with a 20px margin box */
+  .wrap {
+    position: fixed;
+    inset: var(--margin);
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    background: transparent;
+  }
 
-
-  .grid{
-    display:grid;
-    grid-template-columns: repeat(var(--cols), var(--cell));
+  /* Grid fills the available box */
+  .grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 1), var(--cell));
     grid-auto-rows: var(--cell);
     gap: var(--gap);
-    /* optional vignette frame */
-    padding: clamp(12px, 2vmin, 32px);
-    background: rgba(255,255,255,0.03);
-    border-radius: 16px;
-    box-shadow: 0 10px 50px rgba(0,0,0,0.6) inset,
-                0 40px 60px rgba(0,0,0,0.35);
   }
 
-  .dot{
+  .dot {
     width: var(--cell);
     height: var(--cell);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    user-select:none;
-
-    /* visual style */
-    color: var(--plus-off);
-    opacity: .7;
-    font-weight: 900;
-    font-size: calc(var(--cell) * 0.7);
-    line-height: 1;
-    transition:
-      color .15s linear,
-      opacity .35s ease;      /* fade on hover-out */
+    display: grid;
+    place-items: center;
+    user-select: none;
   }
-  .dot::before { content: "+"; }
 
-  .dot:hover{
-    color: var(--plus-on);
+  svg {
+    width: var(--cell);
+    height: var(--cell);
+    overflow: visible;
+  }
+
+  .plus line {
+    stroke: var(--plus-off);
+    stroke-width: var(--stroke);
+    stroke-linecap: round;
+    transition: stroke .15s linear, opacity .35s ease, filter .2s ease;
+    opacity: .9;
+  }
+
+  .dot:hover .plus line,
+  .dot._active .plus line {
+    stroke: var(--plus-on);
     opacity: 1;
-    text-shadow: 0 0 6px rgba(255, 209, 102, .6), 0 0 18px rgba(255, 209, 102, .25);
+    filter: drop-shadow(0 0 6px rgba(125,151,235,.45)) drop-shadow(0 0 14px rgba(125,151,235,.2));
   }
 
-  /* Optional: larger hit area so the trail feels smooth */
-  .dot { padding: 6px; box-sizing: content-box; }
   @media (max-width: 700px){
-    :root{ --cols: 18; --rows: 18; --cell: 22px; --gap: 8px; }
+    :root { --cell: 22px; --gap: 8px; --arm: 6px; }
   }
 </style>
 </head>
@@ -88,47 +84,104 @@ html, body {
   </div>
 
 <script>
-  // Build the grid. No dependencies.
+  // Parameters pulled from CSS custom properties
+  const css = getComputedStyle(document.documentElement);
   const grid = document.getElementById('grid');
-  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
-  const rows = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--rows'));
-  const total = cols * rows;
 
-  const frag = document.createDocumentFragment();
-  for(let i=0;i<total;i++){
-    const d = document.createElement('span');
-    d.className = 'dot';
-    frag.appendChild(d);
+  function num(val){ return parseFloat(val); }
+
+  function readVars(){
+    return {
+      cell:  num(css.getPropertyValue('--cell')),
+      gap:   num(css.getPropertyValue('--gap')),
+      arm:   num(css.getPropertyValue('--arm'))
+    };
   }
-  grid.appendChild(frag);
 
-  // Optional: smooth cursor “flashlight” radius. Comment out if you want per-dot only.
-  // Highlights nearby dots as you pass, each still fades on exit.
-  const R = 55; // radius in px
-  let rect = grid.getBoundingClientRect();
-  window.addEventListener('resize',()=>{ rect = grid.getBoundingClientRect(); });
+  function calcColsRows(){
+    const {cell, gap} = readVars();
+    const rect = grid.getBoundingClientRect();
+    const cols = Math.max(1, Math.floor((rect.width  + gap) / (cell + gap)));
+    const rows = Math.max(1, Math.floor((rect.height + gap) / (cell + gap)));
+    return {cols, rows};
+  }
 
-  grid.addEventListener('mousemove', (e)=>{
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    for(const el of grid.children){
-      const r = el.getBoundingClientRect();
-      const cx = r.left - rect.left + r.width/2;
-      const cy = r.top  - rect.top  + r.height/2;
-      const dist = Math.hypot(cx - x, cy - y);
-      const active = dist < R;
-      el.style.color   = active ? getComputedStyle(document.documentElement).getPropertyValue('--plus-on') : '';
-      el.style.opacity = active ? '1' : '';
-      el.style.textShadow = active ? '0 0 6px rgba(255,209,102,.6), 0 0 18px rgba(255,209,102,.25)' : '';
+  function makePlus(arm){
+    // SVG plus at center with controlled stroke width
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(svgNS, 'svg');
+    s.setAttribute('viewBox', '-12 -12 24 24'); // centered coordinate system
+
+    const g = document.createElementNS(svgNS, 'g');
+    g.setAttribute('class', 'plus');
+
+    const h = document.createElementNS(svgNS, 'line');
+    h.setAttribute('x1', -arm); h.setAttribute('y1', 0);
+    h.setAttribute('x2',  arm); h.setAttribute('y2', 0);
+
+    const v = document.createElementNS(svgNS, 'line');
+    v.setAttribute('x1', 0); v.setAttribute('y1', -arm);
+    v.setAttribute('x2', 0); v.setAttribute('y2',  arm);
+
+    g.appendChild(h); g.appendChild(v);
+    s.appendChild(g);
+    return s;
+  }
+
+  let lastCols = 0, lastRows = 0;
+
+  function build(){
+    const {cols, rows} = calcColsRows();
+    if (cols === lastCols && rows === lastRows) return;
+    lastCols = cols; lastRows = rows;
+
+    // Update CSS var for columns so the grid template matches
+    grid.style.setProperty('--cols', cols);
+
+    // Build cells
+    const {arm} = readVars();
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < cols * rows; i++){
+      const cell = document.createElement('div');
+      cell.className = 'dot';
+      cell.appendChild(makePlus(arm));
+      frag.appendChild(cell);
     }
-  });
+    grid.replaceChildren(frag);
+  }
 
-  grid.addEventListener('mouseleave', ()=>{
-    // Let CSS handle the fade-out by clearing inline styles
-    for(const el of grid.children){
-      el.style.color = el.style.opacity = el.style.textShadow = '';
-    }
-  });
+  // Optional "flashlight" radius to softly light nearby pluses
+  const R = 55;
+  let gridRect = grid.getBoundingClientRect();
+
+  function refreshRect(){ gridRect = grid.getBoundingClientRect(); }
+
+  function enableFlashlight(){
+    grid.addEventListener('mousemove', (e)=>{
+      const x = e.clientX - gridRect.left;
+      const y = e.clientY - gridRect.top;
+      for (const cell of grid.children){
+        const r = cell.getBoundingClientRect();
+        const cx = r.left - gridRect.left + r.width/2;
+        const cy = r.top  - gridRect.top  + r.height/2;
+        const active = Math.hypot(cx - x, cy - y) < R;
+        cell.classList.toggle('_active', active);
+      }
+    });
+    grid.addEventListener('mouseleave', ()=>{
+      for (const cell of grid.children){ cell.classList.remove('_active'); }
+    });
+  }
+
+  // Build and keep responsive
+  const ro = new ResizeObserver(()=>{ refreshRect(); build(); });
+  ro.observe(grid);
+  window.addEventListener('resize', ()=>{ refreshRect(); build(); });
+
+  build();
+  refreshRect();
+  enableFlashlight();
 </script>
 </body>
 </html>
+
