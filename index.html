@@ -3,81 +3,74 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Plus Grid — Final</title>
+<title>Plus Grid — Halo Hover</title>
 <style>
   :root{
     /* Layout */
-    --margin: 10px;           /* equal margin all around */
-    --bg: #FFFFFF;
+    --margin: 20px;
+    --bg: #F3F6F6;
 
-    /* Plus look */
-    --plus-off: #DEDEDE;      /* idle */
-    --plus-on:  #7D6CB1;      /* hover */
-    --stroke: 1.5px;            /* ≈ 1.5 pt */
-    --cell: 26px;             /* symbol box size (smaller) */
-    --gap: 10px;              /* more spacing */
-    --arm: 4px;               /* half-length of + arms */
+    /* Colors and sizing */
+    --plus-off: #77797C;   /* idle stroke */
+    --plus-on:  #F3F6F6;   /* stroke on hover */
+    --halo:     #060723;   /* circle behind on hover */
+
+    --stroke: 2px;         /* ~1.5pt */
+    --cell: 16px;
+    --gap: 24px;
+    --arm: 4px;            /* half-length of + arms */
+    --halo-r: 8px;         /* circle radius in SVG units */
   }
 
-  html, body {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-    background: var(--bg);
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); }
+
+  .wrap{
+    position:fixed; inset:var(--margin);
+    display:grid; place-content:center; box-sizing:border-box;
   }
 
-  /* Viewport box with equal margins */
-  .wrap {
-    position: fixed;
-    inset: var(--margin);
-    display: grid;
-    place-content: center;    /* centers leftover space so top = bottom, left = right */
-    box-sizing: border-box;
-    background: transparent;
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(var(--cols,1), var(--cell));
+    grid-auto-rows:var(--cell);
+    gap:var(--gap);
+    /* width/height set in JS for perfect centering */
   }
 
-  .grid {
-    display: grid;
-    /* width/height set by JS to the exact fitted size */
-    grid-template-columns: repeat(var(--cols, 1), var(--cell));
-    grid-auto-rows: var(--cell);
-    gap: var(--gap);
+  .dot{ width:var(--cell); height:var(--cell); display:grid; place-items:center; user-select:none; }
+
+  svg{ width:var(--cell); height:var(--cell); overflow:visible; }
+
+  /* Plus lines */
+  .plus line{
+    stroke:var(--plus-off);
+    stroke-width:var(--stroke);
+    stroke-linecap:round;
+    opacity:.95;
+    transition:stroke .15s linear, opacity .2s ease;
   }
 
-  .dot {
-    width: var(--cell);
-    height: var(--cell);
-    display: grid;
-    place-items: center;
-    user-select: none;
+  /* Hover circle (halo) is hidden by default */
+  .halo{
+    fill:var(--halo);
+    opacity:0;
+    transform:scale(.85);
+    transform-origin:center;
+    transition:opacity .22s ease, transform .22s ease;
   }
 
-  svg { width: var(--cell); height: var(--cell); overflow: visible; }
-
-  .plus line {
-    stroke: var(--plus-off);
-    stroke-width: var(--stroke);
-    stroke-linecap: round;
-    transition: stroke .15s linear, opacity .2s ease, filter .2s ease;
-    opacity: .95;
-  }
-
+  /* Activate on proximity or actual hover */
   .dot:hover .plus line,
-  .dot._active .plus line {
-    stroke: var(--plus-on);
-    opacity: 1;
-    filter: drop-shadow(0 0 6px rgba(125,151,235,.3)) drop-shadow(0 0 12px rgba(125,151,235,.12));
+  .dot._active .plus line{ stroke:var(--plus-on); opacity:1; }
+
+  .dot:hover .halo,
+  .dot._active .halo{ opacity:1; transform:scale(1); }
+
+  @media (max-width:700px){
+    :root{ --cell:14px; --gap:18px; --arm:3.5px; --halo-r:7px; }
   }
 
-  @media (max-width: 700px){
-    :root { --cell: 14px; --gap: 18px; --arm: 3.5px; }
-  }
-
-  /* iOS viewport stability */
-  @supports (height: 100dvh) {
-    .wrap { height: calc(100dvh - 2 * var(--margin)); }
-  }
+  @supports (height:100dvh){ .wrap{ height:calc(100dvh - 2 * var(--margin)); } }
 </style>
 </head>
 <body>
@@ -95,94 +88,83 @@
     return {
       cell: num(css.getPropertyValue('--cell')),
       gap:  num(css.getPropertyValue('--gap')),
-      arm:  num(css.getPropertyValue('--arm'))
+      arm:  num(css.getPropertyValue('--arm')),
+      haloR:num(css.getPropertyValue('--halo-r'))
     };
   }
 
-  // Fit as many cells as possible, then set the grid's pixel size so margins remain equal
   function fitGrid(){
     const {cell, gap} = readVars();
-    const W = wrap.clientWidth;
-    const H = wrap.clientHeight;
-
-    const cols = Math.max(1, Math.floor((W + gap) / (cell + gap)));
-    const rows = Math.max(1, Math.floor((H + gap) / (cell + gap)));
-
-    // exact fitted size so it centers perfectly
-    const width  = cols * cell + (cols - 1) * gap;
-    const height = rows * cell + (rows - 1) * gap;
-
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const cols = Math.max(1, Math.floor((W + gap)/(cell + gap)));
+    const rows = Math.max(1, Math.floor((H + gap)/(cell + gap)));
     grid.style.setProperty('--cols', cols);
-    grid.style.width  = width  + 'px';
-    grid.style.height = height + 'px';
-
+    grid.style.width  = (cols * cell + (cols - 1) * gap) + 'px';
+    grid.style.height = (rows * cell + (rows - 1) * gap) + 'px';
     return {cols, rows};
   }
 
-  function makePlus(arm){
+  function makePlus(arm, haloR){
     const NS = 'http://www.w3.org/2000/svg';
-    const s = document.createElementNS(NS, 'svg');
-    s.setAttribute('viewBox', '-12 -12 24 24');
-    const g = document.createElementNS(NS, 'g'); g.setAttribute('class','plus');
+    const s = document.createElementNS(NS,'svg');
+    s.setAttribute('viewBox','-12 -12 24 24');
 
-    const h = document.createElementNS(NS, 'line');
-    h.setAttribute('x1', -arm); h.setAttribute('y1', 0);
-    h.setAttribute('x2',  arm); h.setAttribute('y2', 0);
+    // Halo circle behind the plus
+    const c = document.createElementNS(NS,'circle');
+    c.setAttribute('class','halo');
+    c.setAttribute('cx','0'); c.setAttribute('cy','0'); c.setAttribute('r', haloR);
 
-    const v = document.createElementNS(NS, 'line');
-    v.setAttribute('x1', 0); v.setAttribute('y1', -arm);
-    v.setAttribute('x2', 0); v.setAttribute('y2',  arm);
+    // Plus
+    const g = document.createElementNS(NS,'g'); g.setAttribute('class','plus');
+    const h = document.createElementNS(NS,'line'); h.setAttribute('x1',-arm); h.setAttribute('y1',0);  h.setAttribute('x2',arm); h.setAttribute('y2',0);
+    const v = document.createElementNS(NS,'line'); v.setAttribute('x1',0);    v.setAttribute('y1',-arm); v.setAttribute('x2',0);   v.setAttribute('y2',arm);
 
-    g.appendChild(h); g.appendChild(v); s.appendChild(g);
+    g.appendChild(h); g.appendChild(v);
+    s.appendChild(c); s.appendChild(g);
     return s;
   }
 
-  let cache = {cols:0, rows:0};
-
+  let cache={cols:0, rows:0};
   function build(){
     const {cols, rows} = fitGrid();
-    if (cols === cache.cols && rows === cache.rows) return;
-    cache = {cols, rows};
+    if(cols===cache.cols && rows===cache.rows) return;
+    cache={cols, rows};
 
-    const {arm} = readVars();
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < cols * rows; i++){
-      const cell = document.createElement('div');
-      cell.className = 'dot';
-      cell.appendChild(makePlus(arm));
+    const {arm, haloR} = readVars();
+    const frag=document.createDocumentFragment();
+    for(let i=0;i<cols*rows;i++){
+      const cell=document.createElement('div');
+      cell.className='dot';
+      cell.appendChild(makePlus(arm, haloR));
       frag.appendChild(cell);
     }
     grid.replaceChildren(frag);
   }
 
-  // Proximity hover
+  // Proximity activation
   const R = 44;
-  function enableFlashlight(){
-    grid.addEventListener('mousemove', (e)=>{
+  function proximity(){
+    grid.addEventListener('mousemove',(e)=>{
       const rect = grid.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
       for (const cell of grid.children){
         const r = cell.getBoundingClientRect();
         const cx = r.left - rect.left + r.width/2;
         const cy = r.top  - rect.top  + r.height/2;
-        cell.classList.toggle('_active', Math.hypot(cx - x, cy - y) < R);
+        cell.classList.toggle('_active', Math.hypot(cx-x, cy-y) < R);
       }
     });
-    grid.addEventListener('mouseleave', ()=>{
-      for (const cell of grid.children) cell.classList.remove('_active');
-    });
+    grid.addEventListener('mouseleave',()=>{ for(const cell of grid.children) cell.classList.remove('_active'); });
   }
 
-  // Build after layout is ready, and keep responsive
-  const ro = new ResizeObserver(()=>{ build(); });
+  const ro=new ResizeObserver(()=>build());
   ro.observe(wrap);
-  window.addEventListener('load', ()=>{ requestAnimationFrame(build); });
-  window.addEventListener('resize', ()=>{ build(); });
-
-  enableFlashlight();
+  addEventListener('load',()=>requestAnimationFrame(build));
+  addEventListener('resize',build);
+  proximity();
 </script>
 </body>
 </html>
+
 
 
