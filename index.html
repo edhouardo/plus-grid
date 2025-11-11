@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Plus Grid — Thin, Spaced, Equal Margins</title>
+<title>Plus Grid — Final</title>
 <style>
   :root{
     /* Layout */
-    --margin: 20px;          /* equal outer margin */
-    --bg: #F3F6F6;           /* page background */
+    --margin: 20px;           /* equal margin all around */
+    --bg: #F3F6F6;
 
     /* Plus look */
-    --plus-off: #77797C;     /* idle stroke */
-    --plus-on:  #7D97EB;     /* hover stroke */
-    --stroke: 1.5px;         /* thinner than before */
-    --cell: 18px;            /* smaller symbol box */
-    --gap: 20px;             /* more spacing between symbols */
-    --arm: 5px;              /* half arm length of the + */
+    --plus-off: #77797C;      /* idle */
+    --plus-on:  #7D97EB;      /* hover */
+    --stroke: 2px;            /* ≈ 1.5 pt */
+    --cell: 16px;             /* symbol box size (smaller) */
+    --gap: 24px;              /* more spacing */
+    --arm: 4px;               /* half-length of + arms */
   }
 
   html, body {
@@ -27,22 +27,19 @@
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   }
 
-  /* Fill viewport with equal margins */
+  /* Viewport box with equal margins */
   .wrap {
     position: fixed;
     inset: var(--margin);
     display: grid;
-    /* Center content so any leftover space splits evenly top/bottom and left/right */
-    place-content: center;
+    place-content: center;    /* centers leftover space so top = bottom, left = right */
     box-sizing: border-box;
     background: transparent;
   }
 
-  /* Grid fills the available box; rows/cols computed in JS */
   .grid {
-    width: 100%;
-    height: 100%;
     display: grid;
+    /* width/height set by JS to the exact fitted size */
     grid-template-columns: repeat(var(--cols, 1), var(--cell));
     grid-auto-rows: var(--cell);
     gap: var(--gap);
@@ -62,19 +59,19 @@
     stroke: var(--plus-off);
     stroke-width: var(--stroke);
     stroke-linecap: round;
-    transition: stroke .15s linear, opacity .25s ease, filter .2s ease;
-    opacity: .9;
+    transition: stroke .15s linear, opacity .2s ease, filter .2s ease;
+    opacity: .95;
   }
 
   .dot:hover .plus line,
   .dot._active .plus line {
     stroke: var(--plus-on);
     opacity: 1;
-    filter: drop-shadow(0 0 6px rgba(125,151,235,.35)) drop-shadow(0 0 14px rgba(125,151,235,.15));
+    filter: drop-shadow(0 0 6px rgba(125,151,235,.3)) drop-shadow(0 0 12px rgba(125,151,235,.12));
   }
 
   @media (max-width: 700px){
-    :root { --cell: 16px; --gap: 16px; --arm: 4.5px; }
+    :root { --cell: 14px; --gap: 18px; --arm: 3.5px; }
   }
 
   /* iOS viewport stability */
@@ -84,29 +81,41 @@
 </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap" id="wrap">
     <div class="grid" id="grid" aria-hidden="true"></div>
   </div>
 
 <script>
-  // Utility
-  const css = getComputedStyle(document.documentElement);
+  const css  = getComputedStyle(document.documentElement);
+  const wrap = document.getElementById('wrap');
   const grid = document.getElementById('grid');
-  const num = v => parseFloat(v);
+  const num  = v => parseFloat(v);
 
   function readVars(){
     return {
-      cell:  num(css.getPropertyValue('--cell')),
-      gap:   num(css.getPropertyValue('--gap')),
-      arm:   num(css.getPropertyValue('--arm'))
+      cell: num(css.getPropertyValue('--cell')),
+      gap:  num(css.getPropertyValue('--gap')),
+      arm:  num(css.getPropertyValue('--arm'))
     };
   }
 
-  function calcColsRows(){
+  // Fit as many cells as possible, then set the grid's pixel size so margins remain equal
+  function fitGrid(){
     const {cell, gap} = readVars();
-    const rect = grid.getBoundingClientRect();
-    const cols = Math.max(1, Math.floor((rect.width  + gap) / (cell + gap)));
-    const rows = Math.max(1, Math.floor((rect.height + gap) / (cell + gap)));
+    const W = wrap.clientWidth;
+    const H = wrap.clientHeight;
+
+    const cols = Math.max(1, Math.floor((W + gap) / (cell + gap)));
+    const rows = Math.max(1, Math.floor((H + gap) / (cell + gap)));
+
+    // exact fitted size so it centers perfectly
+    const width  = cols * cell + (cols - 1) * gap;
+    const height = rows * cell + (rows - 1) * gap;
+
+    grid.style.setProperty('--cols', cols);
+    grid.style.width  = width  + 'px';
+    grid.style.height = height + 'px';
+
     return {cols, rows};
   }
 
@@ -128,14 +137,12 @@
     return s;
   }
 
-  let lastCols = 0, lastRows = 0;
+  let cache = {cols:0, rows:0};
 
   function build(){
-    const {cols, rows} = calcColsRows();
-    if (cols === lastCols && rows === lastRows) return;
-    lastCols = cols; lastRows = rows;
-
-    grid.style.setProperty('--cols', cols);
+    const {cols, rows} = fitGrid();
+    if (cols === cache.cols && rows === cache.rows) return;
+    cache = {cols, rows};
 
     const {arm} = readVars();
     const frag = document.createDocumentFragment();
@@ -148,19 +155,17 @@
     grid.replaceChildren(frag);
   }
 
-  // Optional proximity “flashlight”
-  const R = 48; // slightly tighter for smaller symbols
-  let gridRect = grid.getBoundingClientRect();
-  function refreshRect(){ gridRect = grid.getBoundingClientRect(); }
-
+  // Proximity hover
+  const R = 44;
   function enableFlashlight(){
     grid.addEventListener('mousemove', (e)=>{
-      const x = e.clientX - gridRect.left;
-      const y = e.clientY - gridRect.top;
+      const rect = grid.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       for (const cell of grid.children){
         const r = cell.getBoundingClientRect();
-        const cx = r.left - gridRect.left + r.width/2;
-        const cy = r.top  - gridRect.top  + r.height/2;
+        const cx = r.left - rect.left + r.width/2;
+        const cy = r.top  - rect.top  + r.height/2;
         cell.classList.toggle('_active', Math.hypot(cx - x, cy - y) < R);
       }
     });
@@ -169,14 +174,15 @@
     });
   }
 
-  const ro = new ResizeObserver(()=>{ refreshRect(); build(); });
-  ro.observe(grid);
-  window.addEventListener('resize', ()=>{ refreshRect(); build(); });
+  // Build after layout is ready, and keep responsive
+  const ro = new ResizeObserver(()=>{ build(); });
+  ro.observe(wrap);
+  window.addEventListener('load', ()=>{ requestAnimationFrame(build); });
+  window.addEventListener('resize', ()=>{ build(); });
 
-  build();
-  refreshRect();
   enableFlashlight();
 </script>
 </body>
 </html>
+
 
